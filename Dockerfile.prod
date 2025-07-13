@@ -1,0 +1,36 @@
+# Stage 1: Build the React application
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+# Cet ARG sera fourni par la pipeline CI/CD GitHub Actions
+# Il permet de "cuire" l'URL de l'API publique directement dans les fichiers du frontend
+ARG REACT_APP_API_URL
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ENV NODE_OPTIONS=--openssl-legacy-provider
+
+RUN npm run build
+
+# Stage 2: Servir les fichiers statiques depuis le build
+FROM node:18-alpine
+
+# Utiliser un serveur statique léger et prêt pour la production
+RUN npm install -g serve
+
+# Définir le répertoire de travail
+WORKDIR /app
+
+# Copier uniquement l'application compilée depuis le "builder stage"
+COPY --from=builder /app/build .
+
+# Exposer le port sur lequel le serveur tournera
+EXPOSE 3000
+
+# Démarrer le serveur. L'option '-s' est cruciale pour les Single Page Applications
+# car elle redirige toutes les requêtes non trouvées vers index.html
+CMD ["serve", "-s", ".", "-l", "3000"] 
